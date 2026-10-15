@@ -1,0 +1,7 @@
+node_modules/
+dist/
+data/
+video/*
+!video/.gitkeep
+*.log
+.DS_Store
