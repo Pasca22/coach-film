@@ -24,9 +24,23 @@ export function createApp({ db, videoDir }) {
 
   api.get('/players', (req, res) => res.json(repo.listPlayers(db)));
 
+  api.get('/opponents', (req, res) => res.json(repo.listOpponents(db)));
+  api.post('/opponents', (req, res) => res.status(201).json(repo.createOpponent(db, req.body)));
+  api.delete('/opponents/:id', (req, res) => {
+    repo.deleteOpponent(db, idParam(req));
+    res.status(204).end();
+  });
+
   api.get('/events', (req, res) => {
-    const { type, team, player } = req.query;
-    res.json(repo.listEvents(db, { type: optional(type), team: optional(team), player: optional(player) }));
+    const { type, team, player, opponent } = req.query;
+    res.json(
+      repo.listEvents(db, {
+        type: optional(type),
+        team: optional(team),
+        player: optional(player),
+        opponent: optional(opponent),
+      }),
+    );
   });
   api.post('/events', (req, res) => res.status(201).json(repo.createEvent(db, req.body)));
   api.patch('/events/:id', (req, res) => res.json(repo.updateEvent(db, idParam(req), req.body)));

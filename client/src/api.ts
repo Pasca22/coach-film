@@ -1,4 +1,4 @@
-import type { Assignment, EventInput, MatchEvent, Player } from './types';
+import type { Assignment, EventInput, MatchEvent, Opponent, Player } from './types';
 
 export const VIDEO_URL = '/video/match.mp4';
 
@@ -16,6 +16,10 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 
 export const api = {
   players: () => request<Player[]>('GET', '/players'),
+
+  opponents: () => request<Opponent[]>('GET', '/opponents'),
+  createOpponent: (input: { number: number; name: string }) => request<Opponent>('POST', '/opponents', input),
+  deleteOpponent: (id: number) => request<void>('DELETE', `/opponents/${id}`),
 
   events: () => request<MatchEvent[]>('GET', '/events'),
   createEvent: (input: EventInput) => request<MatchEvent>('POST', '/events', input),

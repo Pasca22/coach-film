@@ -23,7 +23,10 @@ players with a note. Players see only what was assigned to them.
   An event *is* the clip; there is no separate cut step and no video re-encoding.
 - **Assignment** — an event given to one of *our* players, with a coach note and a
   `watched_at` timestamp (null until the player marks it watched). Unique per event + player.
-- **Player** — seeded roster for both teams (name, jersey number, team).
+- **Player** — the coach's own roster (name, jersey number), seeded.
+- **Opponent** — an opposing player the coach adds for this game (jersey number, optional name).
+  Not part of the roster and never seeded. An event links to a player (team `us`) or an opponent
+  (team `opponent`), never both.
 
 ## Architecture
 
@@ -39,14 +42,18 @@ Single Node package, one process, one port (`127.0.0.1:3000`).
 
 | Table | Columns |
 |---|---|
-| players | id, name, number, team |
-| events | id, type, team, player_id (nullable, must match event team), start_s, end_s (> start_s), created_at |
-| assignments | id, event_id (cascade delete), player_id (must be team `us`), note, watched_at, created_at, UNIQUE(event_id, player_id) |
+| players | id, name, number |
+| opponents | id, number (unique, 0–99), name, created_at |
+| events | id, type, team, player_id (only when team = us), opponent_id (only when team = opponent), start_s, end_s (> start_s), created_at |
+| assignments | id, event_id (cascade delete), player_id, note, watched_at, created_at, UNIQUE(event_id, player_id) |
+
+Older databases that kept opponents in `players` (with a `team` column) are migrated on startup.
 
 ### API
 
 - `GET /api/players`
-- `GET /api/events?type=&team=&player=`, `POST /api/events`, `PATCH /api/events/:id`, `DELETE /api/events/:id`
+- `GET /api/opponents`, `POST /api/opponents`, `DELETE /api/opponents/:id`
+- `GET /api/events?type=&team=&player=&opponent=`, `POST /api/events`, `PATCH /api/events/:id`, `DELETE /api/events/:id`
 - `GET /api/assignments?player=`, `POST /api/assignments`, `PATCH /api/assignments/:id` (`note`, `watched`), `DELETE /api/assignments/:id`
 - `GET /api/video` → `{ available: boolean }`
 

@@ -12,7 +12,7 @@ export function WhoPage() {
   const last = getIdentity();
 
   useEffect(() => {
-    api.players().then((all) => setPlayers(all.filter((p) => p.team === 'us')), (err) => setError(errorMessage(err)));
+    api.players().then(setPlayers, (err) => setError(errorMessage(err)));
   }, []);
 
   const go = (identity: Identity, path: string) => {

@@ -10,22 +10,46 @@ export class NotFoundError extends Error {}
 
 const plain = (row) => (row ? { ...row } : row);
 
-// ---------- players ----------
+// ---------- players (our roster) ----------
 
 export function listPlayers(db) {
-  return db
-    .prepare("SELECT id, name, number, team FROM players ORDER BY team = 'opponent', number")
-    .all()
-    .map(plain);
+  return db.prepare('SELECT id, name, number FROM players ORDER BY number').all().map(plain);
 }
 
 function getPlayer(db, id) {
-  return plain(db.prepare('SELECT id, name, number, team FROM players WHERE id = ?').get(id));
+  return plain(db.prepare('SELECT id, name, number FROM players WHERE id = ?').get(id));
+}
+
+// ---------- opponents (added by the coach for this game) ----------
+
+export function listOpponents(db) {
+  return db.prepare('SELECT id, number, name FROM opponents ORDER BY number').all().map(plain);
+}
+
+function getOpponent(db, id) {
+  return plain(db.prepare('SELECT id, number, name FROM opponents WHERE id = ?').get(id));
+}
+
+export function createOpponent(db, input) {
+  const number = typeof input?.number === 'string' && input.number.trim() !== '' ? Number(input.number) : input?.number;
+  if (!Number.isInteger(number) || number < 0 || number > 99) throw new ValidationError('Jersey number must be 0–99');
+  const name = typeof input?.name === 'string' ? input.name.trim() : '';
+  if (name.length > 60) throw new ValidationError('Name must be at most 60 characters');
+  if (db.prepare('SELECT 1 FROM opponents WHERE number = ?').get(number)) {
+    throw new ValidationError(`Opponent #${number} is already added`);
+  }
+  const { lastInsertRowid } = db.prepare('INSERT INTO opponents (number, name) VALUES (?, ?)').run(number, name);
+  return getOpponent(db, Number(lastInsertRowid));
+}
+
+export function deleteOpponent(db, id) {
+  const { changes } = db.prepare('DELETE FROM opponents WHERE id = ?').run(id);
+  if (!changes) throw new NotFoundError(`Opponent ${id} not found`);
 }
 
 // ---------- events ----------
 
-const EVENT_COLUMNS = 'id, type, team, player_id, start_s, end_s, created_at';
+const EVENT_COLUMNS = 'id, type, team, player_id, opponent_id, start_s, end_s, created_at';
 
 export function listEvents(db, filters = {}) {
   const where = [];
@@ -44,6 +68,10 @@ export function listEvents(db, filters = {}) {
     where.push('player_id = ?');
     params.push(toId(filters.player, 'player'));
   }
+  if (filters.opponent != null) {
+    where.push('opponent_id = ?');
+    params.push(toId(filters.opponent, 'opponent'));
+  }
   const sql = `SELECT ${EVENT_COLUMNS} FROM events ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY start_s`;
   return db.prepare(sql).all(...params).map(plain);
 }
@@ -59,41 +87,48 @@ function validateEvent(db, e) {
   if (!TEAMS.includes(e.team)) throw new ValidationError(`team must be one of ${TEAMS.join(', ')}`);
   if (!Number.isFinite(e.start_s) || e.start_s < 0) throw new ValidationError('start_s must be a number >= 0');
   if (!Number.isFinite(e.end_s) || e.end_s <= e.start_s) throw new ValidationError('end_s must be after start_s');
+  // An event is about one of our players OR one opponent, matching its team.
   if (e.player_id != null) {
-    const player = getPlayer(db, e.player_id);
-    if (!player) throw new ValidationError(`Player ${e.player_id} does not exist`);
-    if (player.team !== e.team) throw new ValidationError(`Player #${player.number} is not on team "${e.team}"`);
+    if (e.team !== 'us') throw new ValidationError('player_id is for "us" events; use opponent_id for the opponent');
+    if (!getPlayer(db, e.player_id)) throw new ValidationError(`Player ${e.player_id} does not exist`);
+  }
+  if (e.opponent_id != null) {
+    if (e.team !== 'opponent') throw new ValidationError('opponent_id is only for "opponent" events');
+    if (!getOpponent(db, e.opponent_id)) throw new ValidationError(`Opponent ${e.opponent_id} does not exist`);
   }
 }
+
+const EVENT_FIELDS = ['type', 'team', 'player_id', 'opponent_id', 'start_s', 'end_s'];
 
 export function createEvent(db, input) {
   const e = {
     type: input?.type,
     team: input?.team,
     player_id: input?.player_id ?? null,
+    opponent_id: input?.opponent_id ?? null,
     start_s: input?.start_s,
     end_s: input?.end_s,
   };
   validateEvent(db, e);
   const { lastInsertRowid } = db
-    .prepare('INSERT INTO events (type, team, player_id, start_s, end_s) VALUES (?, ?, ?, ?, ?)')
-    .run(e.type, e.team, e.player_id, e.start_s, e.end_s);
+    .prepare('INSERT INTO events (type, team, player_id, opponent_id, start_s, end_s) VALUES (?, ?, ?, ?, ?, ?)')
+    .run(e.type, e.team, e.player_id, e.opponent_id, e.start_s, e.end_s);
   return getEvent(db, Number(lastInsertRowid));
 }
 
 export function updateEvent(db, id, patch) {
-  const current = getEvent(db, id);
-  const e = { ...current };
-  for (const key of ['type', 'team', 'player_id', 'start_s', 'end_s']) {
+  const e = getEvent(db, id);
+  for (const key of EVENT_FIELDS) {
     if (patch && key in patch) e[key] = patch[key];
   }
-  // Switching team clears a player that belongs to the other team.
-  if (patch && 'team' in patch && !('player_id' in patch) && e.player_id != null) {
-    if (getPlayer(db, e.player_id)?.team !== e.team) e.player_id = null;
+  // Switching team drops the person from the other side.
+  if (patch && 'team' in patch) {
+    if (e.team === 'us') e.opponent_id = null;
+    else e.player_id = null;
   }
   validateEvent(db, e);
-  db.prepare('UPDATE events SET type = ?, team = ?, player_id = ?, start_s = ?, end_s = ? WHERE id = ?')
-    .run(e.type, e.team, e.player_id, e.start_s, e.end_s, id);
+  db.prepare('UPDATE events SET type = ?, team = ?, player_id = ?, opponent_id = ?, start_s = ?, end_s = ? WHERE id = ?')
+    .run(e.type, e.team, e.player_id, e.opponent_id, e.start_s, e.end_s, id);
   return getEvent(db, id);
 }
 
@@ -107,7 +142,7 @@ export function deleteEvent(db, id) {
 const ASSIGNMENT_SELECT = `
   SELECT a.id, a.event_id, a.player_id, a.note, a.watched_at, a.created_at,
          e.type AS event_type, e.team AS event_team, e.player_id AS event_player_id,
-         e.start_s, e.end_s
+         e.opponent_id AS event_opponent_id, e.start_s, e.end_s
   FROM assignments a JOIN events e ON e.id = a.event_id`;
 
 function shapeAssignment(row) {
@@ -122,6 +157,7 @@ function shapeAssignment(row) {
       type: row.event_type,
       team: row.event_team,
       player_id: row.event_player_id,
+      opponent_id: row.event_opponent_id,
       start_s: row.start_s,
       end_s: row.end_s,
     },
@@ -158,7 +194,6 @@ export function createAssignment(db, input) {
   getEvent(db, eventId);
   const player = getPlayer(db, playerId);
   if (!player) throw new ValidationError(`Player ${playerId} does not exist`);
-  if (player.team !== 'us') throw new ValidationError('Clips can only be assigned to players on your team');
 
   const exists = db.prepare('SELECT 1 FROM assignments WHERE event_id = ? AND player_id = ?').get(eventId, playerId);
   if (exists) throw new ValidationError(`${player.name} already has this clip`);

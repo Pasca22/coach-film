@@ -359,20 +359,45 @@ select optgroup {
 }
 
 .kbd {
-  display: inline-grid;
-  place-items: center;
-  min-width: 1.4em;
-  height: 1.4em;
-  padding: 0 0.3em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
   border: 1px solid var(--border-strong);
   border-bottom-width: 2px;
-  border-radius: 5px;
-  font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
-  font-size: 0.72rem;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 0.75rem;
   font-weight: 600;
-  color: var(--muted);
-  background: var(--surface);
+  line-height: 1;
+  color: var(--text);
+  background: var(--surface-2);
   vertical-align: middle;
+}
+
+.input {
+  height: 32px;
+  min-width: 0;
+  padding: 0 0.6rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  font-size: 0.88rem;
+}
+.input:hover,
+.input:focus {
+  border-color: var(--faint);
+  outline: none;
+}
+.input::placeholder {
+  color: var(--faint);
+}
+.input-num {
+  width: 3.2rem;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
 }
 
 /* ---------- chips, segmented, team markers ---------- */
@@ -813,10 +838,70 @@ select optgroup {
   margin-top: 0.9rem;
 }
 .hotkeys {
-  line-height: 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem 1.5rem;
+  margin: 0;
+  padding: 0.25rem 0.25rem 0;
+  list-style: none;
+  font-size: 0.82rem;
+  color: var(--muted);
 }
-.hotkeys .kbd {
-  margin: 0 1px;
+.hotkeys li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  white-space: nowrap;
+}
+.hotkeys .kbd + .kbd {
+  margin-left: -0.1rem;
+}
+
+.opp-roster {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--border);
+}
+.opp-roster-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+.opp-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  height: 30px;
+  padding: 0 0.3rem 0 0.75rem;
+  border-radius: 999px;
+  border: 1px dashed var(--muted);
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+.opp-chip button {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+}
+.opp-chip button:hover {
+  background: var(--surface-3);
+  color: var(--text);
+}
+.opp-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.opp-add .input:not(.input-num) {
+  width: 10rem;
 }
 
 .filters {

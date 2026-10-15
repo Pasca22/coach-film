@@ -1,12 +1,15 @@
 import { useEffect, useRef } from 'react';
-import { EVENT_TYPES, playerLabel, typeLabel, type EventInput, type MatchEvent, type Player } from '../types';
+import { EVENT_TYPES, typeLabel, type EventInput, type MatchEvent, type Opponent, type Player } from '../types';
+import { personOf } from '../lib/filter';
 import { formatLength, formatRange, formatTime } from '../lib/time';
 import { ReplayIcon, SendIcon, TrashIcon } from './icons';
+import { PersonSelect } from './PersonSelect';
 import { Kbd, Segmented, TeamChip } from './ui';
 
 interface Props {
   events: MatchEvent[];
   players: Player[];
+  opponents: Opponent[];
   assignedTo: Map<number, Player[]>;
   selectedId: number | null;
   onSelect: (event: MatchEvent) => void;
@@ -32,6 +35,7 @@ function EventRow({
   event: e,
   selected,
   players,
+  opponents,
   assignedTo,
   onSelect,
   onChange,
@@ -45,7 +49,8 @@ function EventRow({
     if (selected) ref.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }, [selected]);
 
-  const player = players.find((p) => p.id === e.player_id);
+  const person =
+    e.player_id !== null ? players.find((p) => p.id === e.player_id) : opponents.find((o) => o.id === e.opponent_id);
   const assigned = assignedTo.get(e.id) ?? [];
 
   return (
@@ -55,7 +60,7 @@ function EventRow({
         <span className="event-row-body">
           <span className="event-row-title">
             {typeLabel(e.type)}
-            {player && <span className="muted"> · #{player.number}</span>}
+            {person && <span className="muted"> · #{person.number}</span>}
           </span>
           <span className="event-row-meta">
             {formatLength(e.start_s, e.end_s)}
@@ -89,24 +94,21 @@ function EventRow({
                 { value: 'opponent', label: 'Opp' },
               ]}
             />
-            <select
+            <PersonSelect
               className="select select-grow"
-              aria-label="Player"
-              value={e.player_id ?? ''}
-              onChange={(ev) => {
-                onChange(e, { player_id: ev.target.value ? Number(ev.target.value) : null });
-                ev.currentTarget.blur(); // give the keyboard back to the hotkeys
-              }}
-            >
-              <option value="">No player</option>
-              {players
-                .filter((p) => p.team === e.team)
-                .map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {playerLabel(p)}
-                  </option>
-                ))}
-            </select>
+              team={e.team}
+              players={players}
+              opponents={opponents}
+              value={personOf(e)}
+              onChange={(p) =>
+                onChange(e, {
+                  player_id: p?.kind === 'player' ? p.id : null,
+                  opponent_id: p?.kind === 'opponent' ? p.id : null,
+                })
+              }
+              emptyLabel="No player"
+              label="Player"
+            />
           </div>
 
           <div className="event-editor-edges">

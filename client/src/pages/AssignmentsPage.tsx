@@ -30,7 +30,6 @@ export function AssignmentsPage() {
   const groups = useMemo(
     () =>
       (players ?? [])
-        .filter((p) => p.team === 'us')
         .map((player) => ({ player, items: assignments.filter((a) => a.player_id === player.id) }))
         .filter((g) => g.items.length > 0),
     [players, assignments],

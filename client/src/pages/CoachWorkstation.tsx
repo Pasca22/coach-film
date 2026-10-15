@@ -3,20 +3,23 @@ import { api, errorMessage } from '../api';
 import { AssignDialog } from '../components/AssignDialog';
 import { EventFilterBar } from '../components/EventFilterBar';
 import { EventList } from '../components/EventList';
+import { OpponentRoster } from '../components/OpponentRoster';
 import { TagBar } from '../components/TagBar';
 import { EmptyState, Kbd, LoadError, Loading, Toast } from '../components/ui';
 import { VideoPlayer, type PlayerHandle, type Segment } from '../components/VideoPlayer';
-import { filterEvents, hasFilters, NO_FILTERS, type EventFilters } from '../lib/filter';
+import { filterEvents, hasFilters, NO_FILTERS, type EventFilters, type Person } from '../lib/filter';
 import { useToast, useVideoAvailable } from '../lib/hooks';
 import { formatTime, roundTime, tagWindow } from '../lib/time';
 import {
   EVENT_TYPES,
+  playerLabel,
   teamLabel,
   typeLabel,
   type Assignment,
   type EventInput,
   type EventType,
   type MatchEvent,
+  type Opponent,
   type Player,
   type Team,
 } from '../types';
@@ -32,6 +35,7 @@ export function CoachWorkstation() {
   const { message, show } = useToast();
 
   const [players, setPlayers] = useState<Player[]>([]);
+  const [opponents, setOpponents] = useState<Opponent[]>([]);
   const [events, setEvents] = useState<MatchEvent[]>([]);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -40,14 +44,15 @@ export function CoachWorkstation() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [segment, setSegment] = useState<Segment | null>(null);
   const [tagTeam, setTagTeam] = useState<Team>('us');
-  const [tagPlayer, setTagPlayer] = useState<number | null>(null);
+  const [tagPerson, setTagPerson] = useState<Person | null>(null);
   const [filters, setFilters] = useState<EventFilters>(NO_FILTERS);
   const [assigning, setAssigning] = useState<MatchEvent | null>(null);
 
   useEffect(() => {
-    Promise.all([api.players(), api.events(), api.assignments()]).then(
-      ([p, e, a]) => {
+    Promise.all([api.players(), api.opponents(), api.events(), api.assignments()]).then(
+      ([p, o, e, a]) => {
         setPlayers(p);
+        setOpponents(o);
         setEvents(e);
         setAssignments(a);
         setLoaded(true);
@@ -76,7 +81,17 @@ export function CoachWorkstation() {
     setAssignments((list) =>
       list.map((a) =>
         a.event_id === updated.id
-          ? { ...a, event: { type: updated.type, team: updated.team, player_id: updated.player_id, start_s: updated.start_s, end_s: updated.end_s } }
+          ? {
+              ...a,
+              event: {
+                type: updated.type,
+                team: updated.team,
+                player_id: updated.player_id,
+                opponent_id: updated.opponent_id,
+                start_s: updated.start_s,
+                end_s: updated.end_s,
+              },
+            }
           : a,
       ),
     );
@@ -87,10 +102,16 @@ export function CoachWorkstation() {
     if (!p || !available) return;
     const t = p.time();
     try {
-      const created = await api.createEvent({ type, team: tagTeam, player_id: tagPlayer, ...tagWindow(t, p.duration()) });
+      const created = await api.createEvent({
+        type,
+        team: tagTeam,
+        player_id: tagPerson?.kind === 'player' ? tagPerson.id : null,
+        opponent_id: tagPerson?.kind === 'opponent' ? tagPerson.id : null,
+        ...tagWindow(t, p.duration()),
+      });
       setEvents((list) => [...list, created].sort(byStart));
       setSelectedId(created.id);
-      setTagPlayer(null);
+      setTagPerson(null);
       show(`Tagged ${typeLabel(type)} · ${teamLabel(tagTeam)} · ${formatTime(t)}`);
     } catch (err) {
       show(errorMessage(err));
@@ -134,6 +155,31 @@ export function CoachWorkstation() {
     }
   };
 
+  const addOpponent = async (input: { number: number; name: string }) => {
+    try {
+      const created = await api.createOpponent(input);
+      setOpponents((list) => [...list, created].sort((a, b) => a.number - b.number));
+      return true;
+    } catch (err) {
+      show(errorMessage(err));
+      return false;
+    }
+  };
+
+  const removeOpponent = async (o: Opponent) => {
+    const tagged = events.filter((e) => e.opponent_id === o.id).length;
+    if (tagged && !window.confirm(`Remove ${playerLabel(o)}? Their ${tagged} event(s) stay, without a player.`)) return;
+    try {
+      await api.deleteOpponent(o.id);
+      setOpponents((list) => list.filter((x) => x.id !== o.id));
+      setEvents((list) => list.map((e) => (e.opponent_id === o.id ? { ...e, opponent_id: null } : e)));
+      setFilters((f) => (f.person?.kind === 'opponent' && f.person.id === o.id ? { ...f, person: null } : f));
+      setTagPerson((p) => (p?.kind === 'opponent' && p.id === o.id ? null : p));
+    } catch (err) {
+      show(errorMessage(err));
+    }
+  };
+
   // ---------- hotkeys ----------
 
   const onKey = useRef<(e: KeyboardEvent) => void>(() => {});
@@ -159,7 +205,7 @@ export function CoachWorkstation() {
   }, []);
 
   // Reset the tag player when the team changes so a player never ends up on the wrong team.
-  useEffect(() => setTagPlayer(null), [tagTeam]);
+  useEffect(() => setTagPerson(null), [tagTeam]);
 
   if (loadError) return <LoadError message={loadError} />;
 
@@ -175,18 +221,42 @@ export function CoachWorkstation() {
         />
         <TagBar
           players={players}
+          opponents={opponents}
           team={tagTeam}
-          playerId={tagPlayer}
+          person={tagPerson}
           disabled={!available}
           onTeam={setTagTeam}
-          onPlayer={setTagPlayer}
+          onPerson={setTagPerson}
           onTag={tag}
-        />
-        <p className="hotkeys muted small">
-          <Kbd>Space</Kbd> play/pause · <Kbd>←</Kbd>
-          <Kbd>→</Kbd> 5s (<Kbd>Shift</Kbd> 1s) · <Kbd>1</Kbd>–<Kbd>4</Kbd> tag · <Kbd>T</Kbd> team · <Kbd>[</Kbd>
-          <Kbd>]</Kbd> set start/end · <Kbd>Esc</Kbd> deselect
-        </p>
+        >
+          <OpponentRoster opponents={opponents} onAdd={addOpponent} onRemove={removeOpponent} />
+        </TagBar>
+        <ul className="hotkeys" aria-label="Keyboard shortcuts">
+          <li>
+            <Kbd>Space</Kbd> Play / pause
+          </li>
+          <li>
+            <Kbd>←</Kbd>
+            <Kbd>→</Kbd> 5 s
+          </li>
+          <li>
+            <Kbd>Shift</Kbd>+<Kbd>←</Kbd>
+            <Kbd>→</Kbd> 1 s
+          </li>
+          <li>
+            <Kbd>1</Kbd>–<Kbd>4</Kbd> Tag
+          </li>
+          <li>
+            <Kbd>T</Kbd> Team
+          </li>
+          <li>
+            <Kbd>[</Kbd>
+            <Kbd>]</Kbd> Start / end
+          </li>
+          <li>
+            <Kbd>Esc</Kbd> Deselect
+          </li>
+        </ul>
       </section>
 
       <aside className="ws-side" aria-label="Events">
@@ -196,7 +266,7 @@ export function CoachWorkstation() {
             {hasFilters(filters) ? `${visible.length} of ${events.length}` : events.length}
           </span>
         </div>
-        <EventFilterBar players={players} filters={filters} onChange={setFilters} />
+        <EventFilterBar players={players} opponents={opponents} filters={filters} onChange={setFilters} />
         <div className="ws-list">
           {!loaded ? (
             <Loading />
@@ -210,6 +280,7 @@ export function CoachWorkstation() {
             <EventList
               events={visible}
               players={players}
+              opponents={opponents}
               assignedTo={assignedTo}
               selectedId={selectedId}
               onSelect={play}

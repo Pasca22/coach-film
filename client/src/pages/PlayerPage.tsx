@@ -25,7 +25,7 @@ export function PlayerPage() {
     setOpenId(null);
     Promise.all([api.players(), api.assignments(id)]).then(
       ([all, mine]) => {
-        setPlayer(all.find((p) => p.id === id && p.team === 'us') ?? null);
+        setPlayer(all.find((p) => p.id === id) ?? null);
         setClips(mine);
       },
       (err) => setError(errorMessage(err)),

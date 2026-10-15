@@ -36,8 +36,10 @@ npm run typecheck  # client TypeScript check
 npm run build && npm start   # production build served by Express
 ```
 
-Data lives in `data/coach.db` (git-ignored). Delete it to start fresh; the roster
-in `server/seed.js` is re-seeded automatically.
+Data lives in `data/coach.db` (git-ignored). Delete it to start fresh; your team's roster
+in `server/seed.js` is re-seeded automatically. Opponent players are not part of the roster:
+the coach adds them for the game under **Opponents this game** (jersey number, optional name),
+then tags and filters by them.
 
 ## Coach hotkeys
 

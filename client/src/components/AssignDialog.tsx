@@ -14,7 +14,6 @@ interface Props {
 }
 
 export function AssignDialog({ event, players, assignments, onClose, onAssigned }: Props) {
-  const ours = players.filter((p) => p.team === 'us');
   const already = new Set(assignments.filter((a) => a.event_id === event.id).map((a) => a.player_id));
   const [picked, setPicked] = useState<Set<number>>(new Set());
   const [note, setNote] = useState('');
@@ -52,7 +51,7 @@ export function AssignDialog({ event, players, assignments, onClose, onAssigned 
 
       <fieldset className="pick-list">
         <legend className="field-label">Players</legend>
-        {ours.map((p) => {
+        {players.map((p) => {
           const done = already.has(p.id);
           const on = done || picked.has(p.id);
           return (

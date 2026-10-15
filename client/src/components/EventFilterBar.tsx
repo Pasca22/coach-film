@@ -1,30 +1,27 @@
-import { EVENT_TYPES, playerLabel, type Player, type Team } from '../types';
+import { EVENT_TYPES, type Opponent, type Player, type Team } from '../types';
 import { hasFilters, NO_FILTERS, type EventFilters } from '../lib/filter';
+import { PersonSelect } from './PersonSelect';
 import { Segmented } from './ui';
 
 interface Props {
   players: Player[];
+  opponents: Opponent[];
   filters: EventFilters;
   onChange: (filters: EventFilters) => void;
 }
 
-export function EventFilterBar({ players, filters, onChange }: Props) {
+export function EventFilterBar({ players, opponents, filters, onChange }: Props) {
   const toggleType = (type: (typeof EVENT_TYPES)[number]['type']) => {
     const types = filters.types.includes(type) ? filters.types.filter((t) => t !== type) : [...filters.types, type];
     onChange({ ...filters, types });
   };
 
   const setTeam = (team: Team | 'all') => {
-    const player = players.find((p) => p.id === filters.playerId);
-    // Drop a player filter that no longer matches the team.
-    const playerId = player && team !== 'all' && player.team !== team ? null : filters.playerId;
-    onChange({ ...filters, team, playerId });
+    // Drop a person filter that no longer matches the team.
+    const p = filters.person;
+    const keep = !p || team === 'all' || (team === 'us') === (p.kind === 'player');
+    onChange({ ...filters, team, person: keep ? p : null });
   };
-
-  const groups: { team: Team; label: string }[] = [
-    { team: 'us', label: 'Us' },
-    { team: 'opponent', label: 'Opponent' },
-  ];
 
   return (
     <div className="filters">
@@ -57,30 +54,16 @@ export function EventFilterBar({ players, filters, onChange }: Props) {
             { value: 'opponent', label: 'Opp' },
           ]}
         />
-        <select
+        <PersonSelect
           className="select select-grow"
-          aria-label="Filter by player"
-          value={filters.playerId ?? ''}
-          onChange={(e) => {
-            onChange({ ...filters, playerId: e.target.value ? Number(e.target.value) : null });
-            e.currentTarget.blur(); // give the keyboard back to the hotkeys
-          }}
-        >
-          <option value="">All players</option>
-          {groups
-            .filter((g) => filters.team === 'all' || filters.team === g.team)
-            .map((g) => (
-              <optgroup key={g.team} label={g.label}>
-                {players
-                  .filter((p) => p.team === g.team)
-                  .map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {playerLabel(p)}
-                    </option>
-                  ))}
-              </optgroup>
-            ))}
-        </select>
+          team={filters.team}
+          players={players}
+          opponents={opponents}
+          value={filters.person}
+          onChange={(person) => onChange({ ...filters, person })}
+          emptyLabel="All players"
+          label="Filter by player"
+        />
         {hasFilters(filters) && (
           <button className="link-btn" onClick={() => onChange(NO_FILTERS)}>
             Clear

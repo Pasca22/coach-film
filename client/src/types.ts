@@ -1,24 +1,32 @@
 export type Team = 'us' | 'opponent';
 export type EventType = 'pick_and_roll' | 'assist' | 'points' | 'possession';
 
+/** One of the coach's own players (the roster). */
 export interface Player {
   id: number;
   name: string;
   number: number;
-  team: Team;
+}
+
+/** An opposing player the coach added for this game. Name is optional. */
+export interface Opponent {
+  id: number;
+  number: number;
+  name: string;
 }
 
 export interface MatchEvent {
   id: number;
   type: EventType;
   team: Team;
-  player_id: number | null;
+  player_id: number | null; // set only when team = 'us'
+  opponent_id: number | null; // set only when team = 'opponent'
   start_s: number;
   end_s: number;
   created_at: string;
 }
 
-export type EventInput = Pick<MatchEvent, 'type' | 'team' | 'player_id' | 'start_s' | 'end_s'>;
+export type EventInput = Pick<MatchEvent, 'type' | 'team' | 'player_id' | 'opponent_id' | 'start_s' | 'end_s'>;
 
 export interface Assignment {
   id: number;
@@ -39,4 +47,4 @@ export const EVENT_TYPES: { type: EventType; label: string; key: string }[] = [
 
 export const typeLabel = (type: EventType) => EVENT_TYPES.find((t) => t.type === type)?.label ?? type;
 export const teamLabel = (team: Team) => (team === 'us' ? 'Us' : 'Opponent');
-export const playerLabel = (p: Player) => `#${p.number} ${p.name}`;
+export const playerLabel = (p: Player | Opponent) => (p.name ? `#${p.number} ${p.name}` : `#${p.number}`);

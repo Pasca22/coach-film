@@ -1,19 +1,23 @@
-import { EVENT_TYPES, playerLabel, type EventType, type Player, type Team } from '../types';
+import type { ReactNode } from 'react';
+import { EVENT_TYPES, type EventType, type Opponent, type Player, type Team } from '../types';
+import type { Person } from '../lib/filter';
 import { TAG_AFTER_S, TAG_BEFORE_S } from '../lib/time';
+import { PersonSelect } from './PersonSelect';
 import { Kbd, Segmented } from './ui';
 
 interface Props {
   players: Player[];
+  opponents: Opponent[];
   team: Team;
-  playerId: number | null;
+  person: Person | null;
   disabled: boolean;
   onTeam: (team: Team) => void;
-  onPlayer: (id: number | null) => void;
+  onPerson: (person: Person | null) => void;
   onTag: (type: EventType) => void;
+  children?: ReactNode; // opponent roster
 }
 
-export function TagBar({ players, team, playerId, disabled, onTeam, onPlayer, onTag }: Props) {
-  const teamPlayers = players.filter((p) => p.team === team);
+export function TagBar({ players, opponents, team, person, disabled, onTeam, onPerson, onTag, children }: Props) {
   return (
     <section className="tagbar" aria-label="Tag events">
       <div className="tagbar-head">
@@ -47,23 +51,18 @@ export function TagBar({ players, team, playerId, disabled, onTeam, onPlayer, on
         </div>
         <label className="field-inline">
           <span className="field-label">Player</span>
-          <select
-            className="select"
-            value={playerId ?? ''}
-            onChange={(e) => {
-              onPlayer(e.target.value ? Number(e.target.value) : null);
-              e.currentTarget.blur(); // give the keyboard back to the hotkeys
-            }}
-          >
-            <option value="">None</option>
-            {teamPlayers.map((p) => (
-              <option key={p.id} value={p.id}>
-                {playerLabel(p)}
-              </option>
-            ))}
-          </select>
+          <PersonSelect
+            team={team}
+            players={players}
+            opponents={opponents}
+            value={person}
+            onChange={onPerson}
+            emptyLabel={team === 'opponent' && opponents.length === 0 ? 'Add opponents below' : 'None'}
+            label="Player for new tags"
+          />
         </label>
       </div>
+      {children}
     </section>
   );
 }
